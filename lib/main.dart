@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_firebase_firestore_example/form_page.dart';
+import 'package:flutter_application_firebase_firestore_example/login_page.dart';
+import 'package:get/route_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,12 +18,12 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(),
+      home: const LoginPage(),
     );
   }
 }
@@ -33,10 +36,19 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  String? email;
+  bool isVerified = true;
   _handleDeleteBook(book) async {
     await FirebaseFirestore.instance.collection("books").doc(book.id).delete();
 
     print("Object has been deleted!");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    email = FirebaseAuth.instance.currentUser!.email;
+    isVerified = FirebaseAuth.instance.currentUser!.emailVerified;
   }
 
   _handleSoftDelete(book) async {
@@ -66,10 +78,24 @@ class _MyHomePageState extends State<MyHomePage> {
     print("Object has been updated!");
   }
 
+  _handleLogoutAction() {
+    try {
+      FirebaseAuth.instance.signOut();
+      Navigator.pop(context);
+    } catch (ex) {
+      print(ex);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("My Home Page")),
+      appBar: AppBar(
+        title: Text("My Home Page"),
+        actions: [
+          IconButton(onPressed: _handleLogoutAction, icon: Icon(Icons.login)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -78,46 +104,95 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Icon(Icons.add),
       ),
       body: Container(
-        child: StreamBuilder(
-          stream: FirebaseFirestore.instance
-              .collection("books")
-              .where("status", isEqualTo: 1)
-              .snapshots(),
-          builder:
-              (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
-            if (snapshot.hasError) {
-              return const Center(
-                child: Text("There are an error occured"),
-              );
-            }
+        child: Column(
+          children: [
+            Visibility(
+              visible: !isVerified,
+              child: Container(
+                height: 40,
+                width: double.infinity,
+                color: Colors.orange,
+                child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Please verify your email address",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      InkWell(
+                        child: Text(
+                          "Resend",
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        onTap: () async {
+                          await FirebaseAuth.instance.currentUser!
+                              .sendEmailVerification();
+                        },
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+                flex: 1,
+                child: Text(
+                  "Welcome $email",
+                  style: TextStyle(fontSize: 20),
+                )),
+            Expanded(
+              flex: 9,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: StreamBuilder(
+                  stream: FirebaseFirestore.instance
+                      .collection("books")
+                      .where("status", isEqualTo: 1)
+                      .snapshots(),
+                  builder: (BuildContext context,
+                      AsyncSnapshot<QuerySnapshot> snapshot) {
+                    if (snapshot.hasError) {
+                      return const Center(
+                        child: Text("There are an error occured"),
+                      );
+                    }
 
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.connectionState == ConnectionState.active ||
-                snapshot.connectionState == ConnectionState.done) {
-              final data = snapshot.requireData;
-              return ListView.builder(
-                  itemCount: data.size,
-                  itemBuilder: (BuildContext context, int index) {
-                    return ListTile(
-                        title: Text("${data.docs[index]['name']}"),
-                        subtitle: Text("${data.docs[index]['publisher']}"),
-                        leading: Text("${data.docs[index]['year']}"),
-                        trailing: TextButton.icon(
-                          onPressed: () {
-                            // _handleDeleteBook(data.docs[index]);
-                            _handleMovetoEdit(data.docs[index]);
-                          },
-                          icon: Icon(Icons.edit),
-                          label: Text(
-                            "Edit",
-                          ),
-                        ));
-                  });
-            }
-            return Container();
-          },
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.connectionState == ConnectionState.active ||
+                        snapshot.connectionState == ConnectionState.done) {
+                      final data = snapshot.requireData;
+                      return ListView.builder(
+                          itemCount: data.size,
+                          itemBuilder: (BuildContext context, int index) {
+                            return ListTile(
+                                title: Text("${data.docs[index]['name']}"),
+                                subtitle:
+                                    Text("${data.docs[index]['publisher']}"),
+                                leading: Text("${data.docs[index]['year']}"),
+                                trailing: TextButton.icon(
+                                  onPressed: () {
+                                    // _handleDeleteBook(data.docs[index]);
+                                    _handleMovetoEdit(data.docs[index]);
+                                  },
+                                  icon: Icon(Icons.edit),
+                                  label: Text(
+                                    "Edit",
+                                  ),
+                                ));
+                          });
+                    }
+                    return Container();
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
