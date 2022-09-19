@@ -1,9 +1,13 @@
+import 'dart:io';
+
+import 'package:app_settings/app_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_firebase_firestore_example/main.dart';
 import 'package:flutter_application_firebase_firestore_example/register_page.dart';
-import 'package:get/utils.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -27,6 +31,10 @@ class _LoginPageState extends State<LoginPage> {
                 password: _controllerPassword.text);
         // print(user);
 
+        final prefs = await SharedPreferences.getInstance();
+
+        await prefs.setString("userId", user.user!.uid);
+
         Get.to(MyHomePage());
       }
     } on FirebaseAuthException catch (ex) {
@@ -44,9 +52,43 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  _handleOpenNeedHelp() async {
+    Uri _url = Uri.parse('https://flutter.dev');
+
+    if (!await launchUrl(_url)) {
+      throw 'Could not launch $_url';
+    }
+  }
+
+  _handleOpenFacebook() async {
+    String fbProtocolUrl;
+    if (Platform.isIOS) {
+      fbProtocolUrl = 'fb://profile/muhamet.aljobairi';
+    } else {
+      fbProtocolUrl = 'fb://page/muhamet.aljobairi';
+    }
+
+    String fallbackUrl = 'https://www.facebook.com/muhamet.aljobairi';
+
+    try {
+      bool launched = await launch(fbProtocolUrl, forceSafariVC: false);
+
+      if (!launched) {
+        await launch(fallbackUrl, forceSafariVC: false);
+      }
+    } catch (e) {
+      await launch(fallbackUrl, forceSafariVC: false);
+    }
+  }
+
+  _handleLocationSettings() {
+    AppSettings.openAppSettings();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Container(
         padding: const EdgeInsets.all(12.0),
         child: Form(
@@ -127,11 +169,18 @@ class _LoginPageState extends State<LoginPage> {
                 InkWell(
                   child: const Text("Create an account"),
                   onTap: () {
-                 Get.to(RegisterPage());
+                    Get.to(RegisterPage());
                   },
-                )
+                ),
               ],
-            )
+            ),
+            TextButton(
+                onPressed: _handleOpenNeedHelp, child: Text("Need Help?")),
+            TextButton(
+                onPressed: _handleOpenFacebook, child: Text("Open our FB")),
+            TextButton(
+                onPressed: _handleLocationSettings,
+                child: Text("Open Location Settings"))
           ]),
         ),
       ),

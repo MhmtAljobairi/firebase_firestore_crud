@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_firebase_firestore_example/form_page.dart';
 import 'package:flutter_application_firebase_firestore_example/login_page.dart';
 import 'package:get/route_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,38 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const LoginPage(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (FirebaseAuth.instance.currentUser != null) {
+        Get.to(MyHomePage());
+      } else {
+        Get.to(LoginPage());
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Image.network(
+            "https://cdn.dribbble.com/users/528264/screenshots/3140440/firebase_logo.png"),
+      ),
     );
   }
 }
@@ -38,6 +70,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String? email;
   bool isVerified = true;
+  SharedPreferences? prefs;
   _handleDeleteBook(book) async {
     await FirebaseFirestore.instance.collection("books").doc(book.id).delete();
 
@@ -45,10 +78,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  void initState() {
+  void initState() async {
     super.initState();
+
     email = FirebaseAuth.instance.currentUser!.email;
     isVerified = FirebaseAuth.instance.currentUser!.emailVerified;
+    setSharedPreferences();
+  }
+
+  setSharedPreferences() async {
+    prefs = await SharedPreferences.getInstance();
   }
 
   _handleSoftDelete(book) async {
@@ -89,6 +128,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    User? user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: Text("My Home Page"),
@@ -152,6 +193,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   stream: FirebaseFirestore.instance
                       .collection("books")
                       .where("status", isEqualTo: 1)
+                      // .where("userId",
+                      //     isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+                      .where("userId", isEqualTo: prefs!.getString("userId"))
                       .snapshots(),
                   builder: (BuildContext context,
                       AsyncSnapshot<QuerySnapshot> snapshot) {
